@@ -4,10 +4,6 @@ import (
 	"github.com/aria42/taskar/vector"
 )
 
-type LineSearcher interface {
-	LineSearch(f GradientFn, xs, dir []float64) (stepLength, fnVal float64)
-}
-
 type lineSearchParams struct {
 	// Line step factor in (0,1)
 	alpha float64
@@ -15,10 +11,6 @@ type lineSearchParams struct {
 	beta float64
 	// alpha termination
 	stepLenThresh float64
-}
-
-func NewLineSearcher(alpha float64) LineSearcher {
-	return &lineSearchParams{alpha, 0.0001, 0.0001}
 }
 
 func (params *lineSearchParams) LineSearch(f GradientFn, xs, dir []float64) (float64, float64) {
