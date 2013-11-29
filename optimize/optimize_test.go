@@ -45,3 +45,12 @@ func TestLineSearch(t *testing.T) {
 		So(fnVal, ShouldEqual, 0.0)
 	})
 }
+
+func TestGradientDescent(t *testing.T) {
+	Convey("Gradient descent should minimize a simple function", t, func() {
+		o := new(NewtonOpts)
+		o.InitGuess = []float64{1.0}
+		xmin := NewGradientDescent(o).Minimize(xSquared)
+		So(xmin[0], ShouldEqual, 0.0)
+	})
+}

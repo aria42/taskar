@@ -24,6 +24,7 @@ func (params *lineSearchParams) LineSearch(f GradientFn, xs, dir []float64) (flo
 	for stepLen > params.stepLenThresh {
 		stepX := vector.Add(xs, dir, 1.0, stepLen)
 		fnVal, _ := f.EvalAt(stepX)
+		// fmt.Printf("curVal: %.5f trgVal: %.5f\n", fnVal, f0+stepLen*delta)
 		if fnVal < f0+stepLen*delta {
 			return stepLen, fnVal
 		}
