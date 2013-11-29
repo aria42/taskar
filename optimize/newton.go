@@ -77,12 +77,49 @@ type lbfgs struct {
 	maxHistory int
 }
 
+type historyEntry {
+	xdelta []float64
+	graddelta []float64
+}
+
 func (l *lbfgs) Minimize(f GradientFn) []float64 {
 	// gradient descent always uses direction as is
+	history := list.New()
+	var lastx []float64
 	updateFn := func(x []float64) invHessianMutiply {
+		gamma := 1.0
+		if lastX != nil {
+			xdelta := vector.Add(x, lastx, 1.0, -1.0)			
+			_, lastgrad := f.EvalAt(lastx)
+			_, grad := f.EvalAt(x)
+			graddelta := vector.Add(grad, lastgrad, 1.0, -1.0)
+			history.PushBack(&historyEntry{xdelta, graddelta})
+
+			curvature := vector.DotProd(xdelta, graddelta)
+			gamma = curvature / vector.L2(graddelta)
+		}
 		return func(dir []float64) []float64 {
-			result := make([]float64, len(dir))
-			copy(result, dir)
+			result := make([]float64, f.Dimension())
+			copy(result, dir)			
+			alphas := make([]float64, list.Len(xdeltas))
+			idx := 0
+			// forward history pass
+			for e := history.Front(); e != nil; e = e.Next() {
+				entry := e.Value.(*historyEntry)
+				curvature := vector.DotProd(entry.xdelta, entry.graddelta)
+				alpha := curvature * vector.DotProd(xdelta, result)
+				vector.AddInPlace(result, entry.graddelta, -alpha)
+				alphas[idx++] = alpha
+				vector.ScaleInPlace(result, gamma)				
+			}
+			// backward pass
+			idx = len(alphas)-1
+			for e := history.Back(); e != nil; e = e.Prev() {
+				entry := e.Value
+				rho := vector.DotProd(entry.graddelta, reuslt) / vector.DotProd(entry.xdelta, entry.graddelta)
+				vector.AddInPlace(result, entry.xdelta, alphas[idx]-rho)
+				idx--
+			}
 			return result
 		}
 	}

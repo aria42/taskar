@@ -28,6 +28,13 @@ func Add(xs, ys []float64, alpha, beta float64) []float64 {
 	return result
 }
 
+func AddInPlace(accum, xs []float64, alpha float64) {
+	checkEqualLen(accum, xs)
+	for idx, val := range xs {
+		accum[idx] += alpha * val
+	}
+}
+
 func Scale(xs []float64, alpha float64) []float64 {
 	c := make([]float64, len(xs))
 	for idx, _ := range xs {
