@@ -1,6 +1,7 @@
 package optimize
 
 import (
+	"container/list"
 	"fmt"
 	"github.com/aria42/taskar/vector"
 	"math"
@@ -34,10 +35,10 @@ func newtonMinimize(f GradientFn, update updateInvHessianGuess, opts *NewtonOpts
 		} else {
 			alpha = opts.alpha
 		}
-		l := NewLineSearcher(alpha)
 		// fmt.Printf("newtonIter: iter %d, fx: %.5f\n", iter, fx)
-		xnew := newtonStep(f, x, l, update(x))
-		fxnew, _ := f.EvalAt(xnew)
+		xnew := newtonStep(f, x, NewLineSearcher(alpha), update(x))
+		fxnew, gradnew := f.EvalAt(xnew)
+		// fmt.Printf("newtonStep: iter %d, fx: %.5f fxnew: %.5f\n", iter, fx, fxnew)
 		if fxnew > fx {
 			panic(fmt.Sprintf("newtonStep did not minimize: %.5f -> %.5f", fx, fxnew))
 		}
@@ -47,11 +48,12 @@ func newtonMinimize(f GradientFn, update updateInvHessianGuess, opts *NewtonOpts
 		} else {
 			reldiff = math.Abs(fx-fxnew) / math.Abs(fxnew)
 		}
-		// fmt.Printf("fx: %.5f fxnew: %.5f reldirr: %0.5f\n", fx, fxnew, reldiff)
-		if reldiff <= opts.Tolerance {
+		// fmt.Printf("gradnew %v norm %.5f\n", gradnew, vector.L2(gradnew))
+		x = xnew
+		fmt.Printf("Iteration %d began with %v, ended with value %v\n", iter, fx, fxnew)
+		if reldiff <= opts.Tolerance || vector.L2(gradnew) <= opts.Tolerance {
 			break
 		}
-		x = xnew
 	}
 	return x
 }
@@ -77,19 +79,18 @@ type lbfgs struct {
 	maxHistory int
 }
 
-type historyEntry {
-	xdelta []float64
+type historyEntry struct {
+	xdelta    []float64
 	graddelta []float64
 }
 
 func (l *lbfgs) Minimize(f GradientFn) []float64 {
-	// gradient descent always uses direction as is
 	history := list.New()
 	var lastx []float64
 	updateFn := func(x []float64) invHessianMutiply {
 		gamma := 1.0
-		if lastX != nil {
-			xdelta := vector.Add(x, lastx, 1.0, -1.0)			
+		if lastx != nil {
+			xdelta := vector.Add(x, lastx, 1.0, -1.0)
 			_, lastgrad := f.EvalAt(lastx)
 			_, grad := f.EvalAt(x)
 			graddelta := vector.Add(grad, lastgrad, 1.0, -1.0)
@@ -98,28 +99,31 @@ func (l *lbfgs) Minimize(f GradientFn) []float64 {
 			curvature := vector.DotProd(xdelta, graddelta)
 			gamma = curvature / vector.L2(graddelta)
 		}
+		lastx = x
 		return func(dir []float64) []float64 {
-			result := make([]float64, f.Dimension())
-			copy(result, dir)			
-			alphas := make([]float64, list.Len(xdeltas))
+			result := make([]float64, len(dir))
+			copy(result, dir)
+			alphas := make([]float64, history.Len())
 			idx := 0
 			// forward history pass
 			for e := history.Front(); e != nil; e = e.Next() {
 				entry := e.Value.(*historyEntry)
 				curvature := vector.DotProd(entry.xdelta, entry.graddelta)
-				alpha := curvature * vector.DotProd(xdelta, result)
+				alpha := vector.DotProd(entry.xdelta, result) / curvature
 				vector.AddInPlace(result, entry.graddelta, -alpha)
-				alphas[idx++] = alpha
-				vector.ScaleInPlace(result, gamma)				
+				alphas[idx] = alpha
+				idx++
 			}
+			vector.ScaleInPlace(result, gamma)
 			// backward pass
-			idx = len(alphas)-1
+			idx = len(alphas) - 1
 			for e := history.Back(); e != nil; e = e.Prev() {
-				entry := e.Value
-				rho := vector.DotProd(entry.graddelta, reuslt) / vector.DotProd(entry.xdelta, entry.graddelta)
+				entry := e.Value.(*historyEntry)
+				rho := vector.DotProd(entry.graddelta, result) / vector.DotProd(entry.xdelta, entry.graddelta)
 				vector.AddInPlace(result, entry.xdelta, alphas[idx]-rho)
 				idx--
 			}
+			vector.ScaleInPlace(result, gamma)
 			return result
 		}
 	}

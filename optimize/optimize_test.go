@@ -54,3 +54,12 @@ func TestGradientDescent(t *testing.T) {
 		So(xmin[0], ShouldEqual, 0.0)
 	})
 }
+
+func TestLBFGS(t *testing.T) {
+	Convey("LBFG should minimize a simple function", t, func() {
+		o := new(NewtonOpts)
+		o.InitGuess = []float64{1.0}
+		xmin := NewLBFGS(o, 2).Minimize(xSquared)
+		So(xmin[0], ShouldEqual, 0.0)
+	})
+}

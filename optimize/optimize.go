@@ -1,3 +1,4 @@
+// Standard unconstraiend numerical optimization
 package optimize
 
 import (
@@ -44,5 +45,7 @@ func NewGradientDescent(opts *NewtonOpts) Minimizer {
 }
 
 func NewLBFGS(opts *NewtonOpts, maxHistory int) Minimizer {
+	opts.initAlpha = 0.5
+	opts.alpha = 0.1
 	return &lbfgs{*opts, maxHistory}
 }

@@ -49,16 +49,21 @@ func ScaleInPlace(xs []float64, alpha float64) {
 	}
 }
 
-func L2(xs []float64) (magnitude float64) {
+func lNorm(xs []float64, f func(x float64) float64) (norm float64) {
 	for _, val := range xs {
-		magnitude += val * val
+		norm += f(val)
 	}
 	return
 }
 
+func L2(xs []float64) (magnitude float64) {
+	return lNorm(xs, func(x float64) float64 {
+		return x * x
+	})
+}
+
 func L1(xs []float64) (magnitude float64) {
-	for _, val := range xs {
-		magnitude += math.Abs(val)
-	}
-	return
+	return lNorm(xs, func(x float64) float64 {
+		return math.Abs(x)
+	})
 }
