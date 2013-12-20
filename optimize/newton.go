@@ -7,17 +7,21 @@ import (
 	"math"
 )
 
+// A function which acts like f(x) = H^{-1}x, where
+// H is the hessian of a function
 type invHessianMutiply func(x []float64) []float64
 
 func newtonStep(f GradientFn, x []float64, l LineSearcher, hinv invHessianMutiply) []float64 {
 	_, grad := f.EvalAt(x)
+	// Newton direction is -H^{-1}grad(f_x)
 	dir := hinv(grad)
 	vector.ScaleInPlace(dir, -1.0)
-	// fmt.Printf("newtonStep: x: %v grad: %v dir: %v\n", x, grad, dir)
 	alpha, _ := l.LineSearch(f, x, dir)
 	return vector.Add(x, dir, 1.0, alpha)
 }
 
+// Given a point of history return a new implicit inverse hessian
+// multiply. This strategy defines the quasi-newton method
 type updateInvHessianGuess func(x []float64) invHessianMutiply
 
 func newtonMinimize(f GradientFn, update updateInvHessianGuess, opts *NewtonOpts) []float64 {
@@ -29,16 +33,8 @@ func newtonMinimize(f GradientFn, update updateInvHessianGuess, opts *NewtonOpts
 	}
 	for iter := 0; opts.MaxIters == 0 || iter < opts.MaxIters; iter++ {
 		fx, _ := f.EvalAt(x)
-		var alpha float64
-		if iter == 0 {
-			alpha = opts.initAlpha
-		} else {
-			alpha = opts.alpha
-		}
-		// fmt.Printf("newtonIter: iter %d, fx: %.5f\n", iter, fx)
-		xnew := newtonStep(f, x, NewLineSearcher(alpha), update(x))
+		xnew := newtonStep(f, x, NewLineSearcher(opts.alpha), update(x))
 		fxnew, gradnew := f.EvalAt(xnew)
-		// fmt.Printf("newtonStep: iter %d, fx: %.5f fxnew: %.5f\n", iter, fx, fxnew)
 		if fxnew > fx {
 			panic(fmt.Sprintf("newtonStep did not minimize: %.5f -> %.5f", fx, fxnew))
 		}
@@ -48,9 +44,11 @@ func newtonMinimize(f GradientFn, update updateInvHessianGuess, opts *NewtonOpts
 		} else {
 			reldiff = math.Abs(fx-fxnew) / math.Abs(fxnew)
 		}
-		// fmt.Printf("gradnew %v norm %.5f\n", gradnew, vector.L2(gradnew))
 		x = xnew
-		fmt.Printf("Iteration %d began with %v, ended with value %v\n", iter, fx, fxnew)
+		// fmt.Printf("Iteration %d: began with %v, ended with value %v\n", iter, fx, fxnew)
+		// fmt.Printf("Iteration %d: at x=%v\n", iter, x)
+		// fmt.Printf("Iteration %d: gradient with %v and  relDiff %v\n", iter, vector.L2(gradnew), reldiff)
+		// fmt.Println()
 		if reldiff <= opts.Tolerance || vector.L2(gradnew) <= opts.Tolerance {
 			break
 		}
@@ -84,46 +82,55 @@ type historyEntry struct {
 	graddelta []float64
 }
 
+func (entry *historyEntry) curvature() float64 {
+	curvature := vector.DotProd(entry.xdelta, entry.graddelta)
+	if curvature < 0.0 {
+		panic(fmt.Sprintf("Negative Curvature: %0.5f", curvature))
+	}
+	return curvature
+}
+
 func (l *lbfgs) Minimize(f GradientFn) []float64 {
 	history := list.New()
 	var lastx []float64
 	updateFn := func(x []float64) invHessianMutiply {
-		gamma := 1.0
+		var gamma float64
 		if lastx != nil {
+			// xdelta = x - lastx
 			xdelta := vector.Add(x, lastx, 1.0, -1.0)
-			_, lastgrad := f.EvalAt(lastx)
 			_, grad := f.EvalAt(x)
+			_, lastgrad := f.EvalAt(lastx)
 			graddelta := vector.Add(grad, lastgrad, 1.0, -1.0)
-			history.PushBack(&historyEntry{xdelta, graddelta})
+			entry := &historyEntry{xdelta, graddelta}
+			gamma = entry.curvature() / vector.DotProd(graddelta, graddelta)
 
-			curvature := vector.DotProd(xdelta, graddelta)
-			gamma = curvature / vector.L2(graddelta)
+			// Update history
+			history.PushFront(entry)
+			if history.Len() > l.maxHistory {
+				history.Remove(history.Back())
+			}
+		} else {
+			gamma = 1.0
 		}
 		lastx = x
 		return func(dir []float64) []float64 {
 			result := make([]float64, len(dir))
 			copy(result, dir)
-			alphas := make([]float64, history.Len())
-			idx := 0
 			// forward history pass
 			for e := history.Front(); e != nil; e = e.Next() {
 				entry := e.Value.(*historyEntry)
-				curvature := vector.DotProd(entry.xdelta, entry.graddelta)
-				alpha := vector.DotProd(entry.xdelta, result) / curvature
+				alpha := vector.DotProd(entry.xdelta, result) / entry.curvature()
 				vector.AddInPlace(result, entry.graddelta, -alpha)
-				alphas[idx] = alpha
-				idx++
 			}
-			vector.ScaleInPlace(result, gamma)
+			vector.ScaleInPlace(result, 1.0/gamma)
 			// backward pass
-			idx = len(alphas) - 1
 			for e := history.Back(); e != nil; e = e.Prev() {
 				entry := e.Value.(*historyEntry)
-				rho := vector.DotProd(entry.graddelta, result) / vector.DotProd(entry.xdelta, entry.graddelta)
-				vector.AddInPlace(result, entry.xdelta, alphas[idx]-rho)
-				idx--
+				curvature := entry.curvature()
+				alpha := vector.DotProd(entry.xdelta, result) / curvature
+				beta := vector.DotProd(entry.graddelta, result) / curvature
+				vector.AddInPlace(result, entry.xdelta, alpha-beta)
 			}
-			vector.ScaleInPlace(result, gamma)
 			return result
 		}
 	}

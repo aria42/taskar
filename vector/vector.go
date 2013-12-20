@@ -21,7 +21,7 @@ func DotProd(xs, ys []float64) (sum float64) {
 
 func Add(xs, ys []float64, alpha, beta float64) []float64 {
 	checkEqualLen(xs, ys)
-	result := make([]float64, len(xs))
+	result := make([]float64, len(xs), len(xs))
 	for idx, val := range xs {
 		result[idx] = alpha*val + beta*ys[idx]
 	}
