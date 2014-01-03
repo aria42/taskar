@@ -4,11 +4,10 @@ My hello-world for Golang. Currently only does unconstrained numerical optimizat
 ## Running tests
 - Install Golang coverage tool:` go get code.google.com/p/go.tools/cmd/cover`
 
- - Install the great  `goconvey` testing library:` go get github.com/smartystreets/goconvey`
+- Install the great  `goconvey` testing library:` go get github.com/smartystreets/goconvey`
 
 - Run goconvey test server :` $GOPATH/bin/goconvey`
 
-- Open `http://localhost:8080/` to see test results live update as you edit code
- 
+- Open `http://localhost:8080/` to see test results live update as you edit code 
 
  
