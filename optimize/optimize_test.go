@@ -1,9 +1,10 @@
 package optimize
 
 import (
-	. "github.com/smartystreets/goconvey/convey"
 	"math"
 	"testing"
+
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 var xSquared = NewGradientFn(1, func(xs []float64) (val float64, grad []float64) {

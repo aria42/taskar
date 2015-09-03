@@ -3,8 +3,9 @@ package optimize
 import (
 	"container/list"
 	"fmt"
-	"github.com/aria42/taskar/vector"
 	"math"
+
+	"../vector"
 )
 
 // A function which acts like f(x) = H^{-1}x, where

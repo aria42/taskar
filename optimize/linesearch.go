@@ -2,7 +2,7 @@ package optimize
 
 import (
 	// "fmt"
-	"github.com/aria42/taskar/vector"
+	"../vector"
 )
 
 type lineSearchParams struct {
